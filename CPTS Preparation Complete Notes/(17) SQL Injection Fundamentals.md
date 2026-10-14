@@ -1,6 +1,16 @@
 # SQL Injection Fundamentals — CPTS Notes
 
-SQLi feels like chaos because it's a **toolbox**, not a straight script. This note fixes that: the **methodology (the fork)** comes first, so you always know which tool to reach for. Then the full reference organized by the HTB module sections, worked examples, a section on **how to adapt any payload to your target**, and a few extras. (sqlmap lives in your separate sqlmap chapter — not repeated here.)
+SQLi feels like chaos because it's a **toolbox**, not a straight script. This note fixes that: the **methodology (the fork)** comes first, so you always know which tool to reach for. Then the full reference organized by the HTB module sections, worked examples, a section on **how to adapt any payload to your target**, and a few extras. 
+
+When to use manual SQLi or SQLMAP?
+
+1. MANUAL: inject '  → confirm it breaks
+
+2. MANUAL: find break-out + column count (understand the query)
+
+3. SQLMAP: feed the request → let it dump everything
+
+4. MANUAL again: if sqlmap gets WAF-blocked → hand-craft a bypass, or use --tamper
 
 ---
 
