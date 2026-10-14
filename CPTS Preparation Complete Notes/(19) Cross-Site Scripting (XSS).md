@@ -155,7 +155,7 @@ With normal XSS, the result can usually be seen directly. **Blind XSS** is diffe
 For example:
 
 ```text
-Input → Admin Panel → Admin Browser → XSS executes
+Input → Admin Panel → Admin Browses it → XSS executes
 ```
 
 Blind XSS commonly appears in **contact forms, reviews, user details, support tickets, and HTTP headers**.
