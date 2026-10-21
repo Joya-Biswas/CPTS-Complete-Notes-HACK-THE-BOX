@@ -1,6 +1,6 @@
 
 
-**Box:** Windows AD, assumed breach. Target `10.129.232.88` = `dc01.fluffy.htb` (domain `fluffy.htb`).
+**Box:** Windows AD, assumed breach. Target `10.129.232.88` = `dc01.fluffy.htb` (domain `fluffy.htb`). exploit ESC16.
 **Given cred:** `j.fleischman:J0elTHEM4n1990!`
 
 > Kit: nxc, impacket, bloodyAD, Responder, certipy. Tools over proxychains where possible.
