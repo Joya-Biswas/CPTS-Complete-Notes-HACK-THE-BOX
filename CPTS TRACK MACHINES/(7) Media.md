@@ -358,8 +358,8 @@ But here’s the honest catch: SeTcb is awkward to weaponize compared to the eas
 
 Memorize these two — they map every exploitable token privilege to its technique:
 
-priv2admin → github.com/gtworek/Priv2Admin (a table: each privilege → exact abuse)
-HackTricks → “Abusing Tokens”
+1. priv2admin → github.com/gtworek/Priv2Admin (a table: each privilege → exact abuse)
+2. HackTricks → “Abusing Tokens”
 
 The quick mental map of the weaponizable ones:
 
