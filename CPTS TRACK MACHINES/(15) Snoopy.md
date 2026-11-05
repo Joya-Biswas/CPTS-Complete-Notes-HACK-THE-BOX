@@ -99,6 +99,7 @@ ffuf -w /opt/SecLists/Fuzzing/LFI/LFI-Jhaddix.txt:FUZZ -u "http://www.snoopy.htb
 > **Your question — `file_get_contents` vs `include`:**
 > - `file_get_contents` / readfile / zip = reads the file as **data** → you see the **raw source** (great for reading PHP source, no code runs).
 > - `include` / `require` = **executes** the file as PHP → you get rendered output or even **RCE** (e.g. log poisoning, `php://filter`, wrappers). Here it's the data kind, so **no RCE from the LFI** — it's purely a file-read.
+> - Basically, `file_get_contents()` = Read a recipe and `include()` = Read the recipe and actually cook it. thats why no RCE was possible here, in this phase. Only file read.
 
 ### `/proc/self/cwd` — read the app's own source
 
